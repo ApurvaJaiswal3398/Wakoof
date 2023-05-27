@@ -24,3 +24,30 @@ def validate_user_session(id, token):
         return False
     except UserModel.DoesNotExist:
         return False
+
+@csrf_exempt
+def generate_token(request, id, token):
+    if not validate_user_session(id, token):
+        return JsonResponse({'error': 'Invalid session, Please Login Again!'})
+    return JsonResponse({'clientToken': gateway.client_token.generate(), 'success':True})
+
+@csrf_exempt
+def process_payment(request, id, token):
+    if not validate_user_session(id, token):
+        return JsonResponse({'error': 'Invalid session, Please Login Again!'})
+    
+    nonce_from_client = request.POST['paymentMethodNonce']
+    amount_from_client = request.POST['amount']
+
+    result = gateway.transaction.sale({
+        'amount': amount_from_client,
+        'payment_method_nonce': nonce_from_client,
+        'options': {
+            "submit_for_settlement": True
+        }
+    })
+    
+    if result.is_success:
+        return JsonResponse({'success': result.is_success,'transaction': {'id': result.transaction.id, 'amount': result.transaction.amount}})
+    else:
+        return JsonResponse({'error': True, 'success': False})
